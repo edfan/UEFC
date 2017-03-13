@@ -1,6 +1,8 @@
-#! /usr/bin/python3
+#! /usr/bin/env python3
 
 import math
+import numpy as np
+from scipy.optimize import minimize_scalar, brute
 
 class Plane():
     """
@@ -37,11 +39,13 @@ class Plane():
     g: acceleration due to gravity
     lamb: taper ratio (not lambda because of Python keyword)
     N: load factor
+    rho_air: air density
     rho_foam: foam density
     R: radius of circle
     tau: airfoil thickness ratio
     t_rev: time to complete one revolution
     T_max: maximum available thrust
+    V: flight speed
     W: total weight
     W_max: maximum total weight supportable
     W_pay: weight of payload
@@ -101,7 +105,7 @@ class Plane():
         self.check_vars('AR', required_vars)
 
         self.AR = self.b / self.c
-
+        
     def c_c(self):
         required_vars = ['c_t', 'c_r']
         self.check_vars('c', required_vars)
@@ -125,7 +129,7 @@ class Plane():
         required_vars = ['C_L', 'AR', 'e']
         self.check_vars('C_Di', required_vars)
 
-        self.C_Di = self.C_L**2 / (math.pi * self.AR * self.e)
+        self.C_Di = (self.C_L)**2 / (math.pi * self.AR * self.e)
         
     def c_c_l(self):
         required_vars = ['C_L']
@@ -139,7 +143,7 @@ class Plane():
 
         self.delta_over_b = 0.018 * self.N * \
             (self.W_fuse + self.W_pay) / (self.E_foam * self.tau * ((self.tau)**2 + (self.eps)**2)) * \
-            (1.0 + self.lamb)**3 * (1.0 + 2 * self.lamb) * (self.AR)**3 / self.S
+            (1.0 + self.lamb)**3 * (1.0 + 2.0 * self.lamb) * (self.AR)**3 / self.S
 
     def c_lamb(self):
         required_vars = ['c_t', 'c_r']
@@ -147,11 +151,36 @@ class Plane():
 
         self.lamb = self.c_t / self.c_r
 
+    def c_N(self):
+        required_vars = ['W_fuse', 'W_wing', 'W_pay', 'rho_air', 'g', 'R', 'S', 'C_L']
+        self.check_vars('N', required_vars)
+
+        self.N = (1 - ((self.W_fuse + self.W_wing + self.W_pay) / \
+            (0.5 * self.rho_air * self.g * self.R * self.S * self.C_L))**2)**-0.5
+
     def c_S(self):
         required_vars = ['b', 'c']
         self.check_vars('S', required_vars)
 
         self.S = self.b * self.c
+
+    def c_t_rev(self):
+        required_vars = ['R', 'V']
+        self.check_vars('t_rev', required_vars)
+
+        self.t_rev = 2 * math.pi * self.R / self.V
+
+    def c_V(self):
+        required_vars = ['g', 'R', 'N']
+        self.check_vars('V', required_vars)
+
+        self.V = (self.g * self.R * ((self.N)**2 - 1)**0.5)**0.5 
+
+    def c_W(self):
+        required_vars = ['W_wing', 'W_fuse', 'W_pay']
+        self.check_vars('W', required_vars)
+
+        self.W = self.W_wing + self.W_fuse + self.W_pay
 
     def c_W_max(self):
         required_vars = ['T_max', 'C_D', 'C_L']
@@ -191,8 +220,9 @@ plane_vanilla_params = {
     'E_foam': 19.3e6,
     'g': 9.8,
     'N': 1, # maximum load factor
+    'rho_air': 1.225,
     'rho_foam': 32.0,
-    'R': 1.25,
+    'R': 12.5,
     'tau': 0.11,
     'T_max': 0.7,
     'W_fuse': 2.7
@@ -215,6 +245,62 @@ p.c_W_pay_max()
 p.W_pay = p.W_pay_max
 p.c_delta_over_b()
 
-print(p.W_pay_max)
-print(p.delta_over_b)
+print(p.S)
+print(p.AR)
+                                    
+print('W_pay_max (unconstrained):', p.W_pay_max)
+print('delta/b (unconstrained):', p.delta_over_b)
+
+# Find W_pay_max for delta_over_b <= 0.1.
+
+def constrained_W_pay(W_pay, delta_over_b_max):
+    p.W_pay = W_pay
+    p.c_delta_over_b()
+    if p.delta_over_b > delta_over_b_max:
+        return 0
+    return -1.0 * W_pay # Find maximum through minimum.
+
+print('W_pay_max (constrained for d/b <= 0.1):',
+      minimize_scalar(constrained_W_pay, args=(0.1), bounds=(0, 5), method='bounded'))
+
+# Find t_rev_min for delta_over_b = 0.1, W_pay = 0.
+
+p.W_pay = 0
+p.c_N()
+p.c_V()
+p.c_t_rev()
+
+print('t_rev_min:', p.t_rev)
+
+# Now, optimize W_pay_max
+
+def optimized_W_pay(args, *dbm):
+    delta_over_b_max = dbm[0]
+
+    p.N = 1 # back to maximum load factor
+    p.S = args[0]
+    p.AR = args[1]
+    p.C_L = args[2]
+    p.c_C_DP()
+    p.c_C_Di()
+    p.c_C_D()
+    p.c_W_wing()
+    p.c_W_max()
+
+    p.W_pay = p.W_max - p.W_wing - p.W_fuse
+    p.c_delta_over_b()
+    if p.delta_over_b > delta_over_b_max:
+        return 0
+    return -1.0 * p.W_pay # Find maximum through minimum.
+
+ranges = (slice(0.01, 10, 0.1), slice(1, 50, .5), slice(0, 1, 0.025))
+
+print('W_pay_max (constrained for d/b <= 0.1):',
+      brute(optimized_W_pay, ranges, args=(0.1,), finish=None))
+    
+
+
+
+
+
 
