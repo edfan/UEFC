@@ -155,8 +155,13 @@ class Plane():
         required_vars = ['W_fuse', 'W_wing', 'W_pay', 'rho_air', 'g', 'R', 'S', 'C_L']
         self.check_vars('N', required_vars)
 
-        self.N = (1 - ((self.W_fuse + self.W_wing + self.W_pay) / \
-            (0.5 * self.rho_air * self.g * self.R * self.S * self.C_L))**2)**-0.5
+        intermediate = (1 - ((self.W_fuse + self.W_wing + self.W_pay) / \
+            (0.5 * self.rho_air * self.g * self.R * self.S * self.C_L))**2)
+        
+        if intermediate < 0:
+            return 0 # Imaginary result produced otherwise.
+
+        self.N = intermediate**-0.5
 
     def c_S(self):
         required_vars = ['b', 'c']
@@ -174,7 +179,12 @@ class Plane():
         required_vars = ['g', 'R', 'N']
         self.check_vars('V', required_vars)
 
-        self.V = (self.g * self.R * ((self.N)**2 - 1)**0.5)**0.5 
+        intermediate = (self.N)**2 - 1
+
+        if intermediate < 0:
+            return 0
+
+        self.V = (self.g * self.R * (intermediate)**0.5)**0.5 
 
     def c_W(self):
         required_vars = ['W_wing', 'W_fuse', 'W_pay']
@@ -244,9 +254,6 @@ p.c_W_max()
 p.c_W_pay_max()
 p.W_pay = p.W_pay_max
 p.c_delta_over_b()
-
-print(p.S)
-print(p.AR)
                                     
 print('W_pay_max (unconstrained):', p.W_pay_max)
 print('delta/b (unconstrained):', p.delta_over_b)
@@ -261,7 +268,7 @@ def constrained_W_pay(W_pay, delta_over_b_max):
     return -1.0 * W_pay # Find maximum through minimum.
 
 print('W_pay_max (constrained for d/b <= 0.1):',
-      minimize_scalar(constrained_W_pay, args=(0.1), bounds=(0, 5), method='bounded'))
+      minimize_scalar(constrained_W_pay, args=(0.1), bounds=(0, 5), method='bounded').x)
 
 # Find t_rev_min for delta_over_b = 0.1, W_pay = 0.
 
@@ -274,9 +281,7 @@ print('t_rev_min:', p.t_rev)
 
 # Now, optimize W_pay_max
 
-def optimized_W_pay(args, *dbm):
-    delta_over_b_max = dbm[0]
-
+def optimized_W_pay(args, delta_over_b_max):
     p.N = 1 # back to maximum load factor
     p.S = args[0]
     p.AR = args[1]
@@ -293,14 +298,41 @@ def optimized_W_pay(args, *dbm):
         return 0
     return -1.0 * p.W_pay # Find maximum through minimum.
 
-ranges = (slice(0.01, 10, 0.1), slice(1, 50, .5), slice(0, 1, 0.025))
+ranges = (slice(0.1, 2, 0.01), slice(1, 50, .1), slice(0.025, 1, 0.025))
 
 print('W_pay_max (constrained for d/b <= 0.1):',
       brute(optimized_W_pay, ranges, args=(0.1,), finish=None))
+
+print('W_pay_max (constrained for d/b <= 0.05):',
+      brute(optimized_W_pay, ranges, args=(0.05,), finish=None))
+
+print('W_pay_max (constrained for d/b <= 0.15):',
+      brute(optimized_W_pay, ranges, args=(0.15,), finish=None))
     
+# Optimize t_rev
+def optimized_t_rev(args, delta_over_b_max):
+    p.W_pay = 0
+    p.S = args[0]
+    p.AR = args[1]
+    p.C_L = args[2]
+    p.c_W_wing()
+    p.c_N()
+    if p.N == 0:
+        return 10000
+    p.c_V()
+    if p.V == 0:
+        return 10000
+    p.c_t_rev()
+    p.c_delta_over_b()
+    if p.delta_over_b > delta_over_b_max:
+        return 10000 # Arbitrarily large value, won't be the min.
+    return p.t_rev
 
+print('t_rev_min (constrained for d/b <= 0.1):',
+      brute(optimized_t_rev, ranges, args=(0.1,), finish=None))
 
+print('t_rev_min (constrained for d/b <= 0.05):',
+      brute(optimized_t_rev, ranges, args=(0.05,), finish=None))
 
-
-
-
+print('t_rev_min (constrained for d/b <= 0.15):',
+      brute(optimized_t_rev, ranges, args=(0.15,), finish=None)) 
