@@ -550,6 +550,30 @@ plt.show(block=False)
 
 input("Continue...")
 plt.close()
+
+# Graph 1D W_pay with d/b points
+
+plt.axhline(y=0, color='0.7', linestyle='dashed')
+plt.plot(5.52, 0, 'r.')
+plt.plot(6.80, 0, 'g.')
+plt.plot(7.61, 0, 'b.')
+
+plt.xlabel(r'$W_{pay}$')
+plt.title(r'$W_{pay}$ optimization results')
+
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.05", xy=(5.52, 0), xytext=(5.21, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.1", xy=(6.80, 0), xytext=(6.49, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.15", xy=(7.61, 0), xytext=(7.3, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+
+plt.gca().axes.get_yaxis().set_visible(False)
+plt.xlim([4.75, 8])
+plt.show(block=False)
+
+input("Continue...")
+plt.close()
     
 # Optimize t_rev
 def optimized_t_rev(args, delta_over_b_max, print_result=False, ignore_db=False):
@@ -691,3 +715,28 @@ plt.annotate(r"$T_{max}$ = 0.7 N", xy=(5.4, 0.0493), xytext=(5.1, 0.0445),
 plt.show(block=False)
 
 input("Continue...")
+plt.close()
+
+# Graph 1D t_rev with d/b points
+
+plt.axhline(y=0, color='0.7', linestyle='dashed')
+plt.plot(6.67, 0, 'r.')
+plt.plot(6.37, 0, 'g.')
+plt.plot(6.22, 0, 'b.')
+
+plt.xlabel(r'$t_{rev}$')
+plt.title(r'$t_{rev}$ optimization results')
+
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.05", xy=(6.67, 0), xytext=(6.57, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.1", xy=(6.37, 0), xytext=(6.2, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+plt.annotate(r"$\frac{\delta}{b}_{max}$ = 0.15", xy=(6.22, 0), xytext=(5.77, 0.01),
+             arrowprops=dict(arrowstyle="->"))
+
+plt.gca().axes.get_yaxis().set_visible(False)
+plt.xlim([5.5, 7])
+plt.show(block=False)
+
+input("Continue...")
+plt.close()
