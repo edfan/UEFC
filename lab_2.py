@@ -593,7 +593,7 @@ def optimized_t_rev(args, delta_over_b_max, print_result=False, ignore_db=False)
     except ValueError:
         return 10000 # Arbitrarily large value; won't be the min.
 
-ranges = (slice(0.01, 0.1, 0.001), slice(1, 25, .1), slice(0.01, 1, 0.01))
+ranges = (slice(0.045, 0.055, 0.0001), slice(4, 8, .01), slice(0.01, 1.01, 0.01))
     
 #tmp = brute(optimized_t_rev, ranges, args=(0.1,), finish=None)
 #print('t_rev_min (constrained for d/b <= 0.1):', tmp)
@@ -610,13 +610,13 @@ ranges = (slice(0.01, 0.1, 0.001), slice(1, 25, .1), slice(0.01, 1, 0.01))
 # Graph t_rev optimization
 
 def simple_t_rev(AR, S):
-    return optimized_t_rev((S, AR, 0.99), 10000, False, True)
+    return optimized_t_rev((S, AR, 1.0), 10000, False, True)
 
 def simple_delta_over_b(AR, S):
     p.W_pay = 0
     p.S = S
     p.AR = AR
-    p.C_L = 0.99
+    p.C_L = 1.0
     p.c_b()
     p.c_c_r()
     p.c_c_l()
@@ -636,7 +636,7 @@ def simple_T_req(AR, S):
     p.W_pay = 0
     p.S = S
     p.AR = AR
-    p.C_L = 0.99
+    p.C_L = 1.0
     p.c_b()
     p.c_c_r()
     p.c_c_l()
@@ -667,11 +667,11 @@ Z3 = simple_T_req(X, Y)
 
 plt.xlabel(r'AR')
 plt.ylabel(r'S ($m^2$)')
-plt.title('Optimization of $t_{rev}$ ($C_{L} = 0.99$)')
+plt.title('Optimization of $t_{rev}$ ($C_{L} = 1$)')
 
-plt.plot(5, 0.051, 'k.')
-plt.plot(5.8, 0.049, 'k.')
-plt.plot(6.4, 0.048, 'k.')
+plt.plot(5.14, 0.0499, 'k.')
+plt.plot(6.26, 0.0477, 'k.')
+plt.plot(7.04, 0.0467, 'k.')
 
 C1 = plt.contour(X, Y, Z, levels=[6.0, 6.2, 6.4, 6.6, 6.8, 7.0], colors = '0.7')
 plt.clabel(C1, inline=1, fontsize=10, fmt='%1.1f')
@@ -679,13 +679,13 @@ C2 = plt.contour(X, Y, Z2, inline=1, fontsize=10, levels=[0.05, 0.1, 0.15], colo
 CB2 = plt.colorbar(C2, shrink=0.8, extend='both', pad = 0.05, label=r"$\frac{\delta}{b}_{max}$")
 C3 = plt.contour(X, Y, Z3, levels=[0.7], colors = 'r')
 
-plt.annotate(r"$t_{rev}$ = 6.75 s", xy=(5, 0.051), xytext=(4.5, 0.055),
+plt.annotate(r"$t_{rev}$ = 6.67 s", xy=(5.14, 0.0499), xytext=(4.5, 0.055),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.48 s", xy=(5.8, 0.049), xytext=(5.6, 0.0545),
+plt.annotate(r"$t_{rev}$ = 6.37 s", xy=(6.26, 0.0477), xytext=(5.6, 0.0545),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.34 s", xy=(6.4, 0.048), xytext=(6.2, 0.056),
+plt.annotate(r"$t_{rev}$ = 6.22 s", xy=(7.04, 0.0467), xytext=(6.2, 0.056),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$T_{max}$ = 0.7 N", xy=(5.4, 0.0497), xytext=(5.1, 0.045),
+plt.annotate(r"$T_{max}$ = 0.7 N", xy=(5.4, 0.0493), xytext=(5.1, 0.0445),
              arrowprops=dict(arrowstyle="->"))
 
 plt.show(block=False)
