@@ -19,8 +19,7 @@ class Plane():
     p.c_W_wing() # Calculates W_wing and sets it in p.
     print(p.W_wing) # The value of W_wing.
 
-    Parameter names:
-    a: something for c_l
+    Parameter names:  
     A: cross-sectional area
     b: wing span
     c: average wing chord
@@ -142,17 +141,17 @@ class Plane():
         self.C_D = self.CDA_0 / self.S + self.C_DP + self.C_Di
             
     def c_C_DP(self):
-        required_vars = ['c_l', 'Re', 'Re_ref', 'a', 'tau']
+        required_vars = ['c_l', 'Re', 'Re_ref', 'tau']
         self.check_vars('C_DP', required_vars)
 
-        self.c_d0 = 0.02 * (1 + self.tau ** 2)
-        self.c_d1 = -0.005 / (1 + 6.0 * self.tau)
-        self.c_d2 = 0.16 * (1 + 60.0 * self.tau)
-        self.c_d8 = 1.0
-        self.c_l0 = 1.25 - 3.0 * self.tau
+        c_d0 = 0.02 * (1 + self.tau ** 2)
+        c_d1 = -0.005 / (1 + 6.0 * self.tau)
+        c_d2 = 0.16 / (1 + 60.0 * self.tau)
+        c_d8 = 1.0
+        c_l0 = 1.25 - 3.0 * self.tau
         
-        lift_diff = self.c_l - self.c_l0
-        self.C_DP = (self.c_d0 + self.c_d1 * lift_diff + self.c_d2 * lift_diff**2 + self.c_d8 * lift_diff**8) * (self.Re / self.Re_ref)**(self.a)
+        lift_diff = self.c_l - c_l0
+        self.C_DP = (c_d0 + c_d1 * lift_diff + c_d2 * lift_diff**2 + c_d8 * lift_diff**8) * (self.Re / self.Re_ref)**(-0.75)
         
     def c_C_Di(self):
         required_vars = ['C_L', 'AR', 'e']
@@ -257,6 +256,12 @@ class Plane():
 
         self.W = self.W_wing + self.W_fuse + self.W_pay
 
+    def c_W_fuse(self):
+        required_vars = ['b', 'g', 'S']
+        self.check_vars('W_fuse', required_vars)
+
+        self.W_fuse = (.145 + .06 * self.b / 1.52 + .045 * self.S / .228) * self.g
+
     def c_W_max(self):
         required_vars = ['T_max', 'C_D', 'C_L']
         self.check_vars('W_max', required_vars)
@@ -289,39 +294,35 @@ class Plane():
 # Represent Plane Vanilla parameters as a dictionary, which can then be turned
 # into a Plane object.
 plane_vanilla_params = {
-    'a': -0.75,
-    'b': 1.52,
     'c_r': 0.2,
     'c_t': 0.1,
-    'CDA_0': 0.004,
     'delta': 0.18,
     'e': 0.95,
     'E_foam': 19.3e6,
     'g': 9.81,
     'mu_air': 1.81e-5,
-    'N': 1, # maximum load factor
     'rho_air': 1.225,
     'rho_foam': 32.0,
     'R': 12.5,
     'Re_ref': 100000,
-    'T_max': 0.7,
-    'W_fuse': 2.7
 }
 
 # Calculating W_pay_max for Plane Vanilla
 p = Plane(**plane_vanilla_params)
 p.c_lamb()
 
-# Optimize combined objective function
+tau = 0.11
 
-def optimized_combined(args, delta_over_b_max, tau, print_result=False, ignore_db=False):
+def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=False):
     # args:
     # 0: S
     # 1: AR
     # 2: C_L (loaded)
-    # 3: W_pay
-    # 4: tau
-    
+    # 3: C_L (empty)
+    # 4: W_pay
+
+    global tau
+
     try:
         p.S = args[0]
         p.AR = args[1]
@@ -331,6 +332,7 @@ def optimized_combined(args, delta_over_b_max, tau, print_result=False, ignore_d
         p.c_b()
         p.c_c()
         p.c_A()
+        p.c_W_fuse()
         p.c_W_wing()
         p.c_W()
         p.c_N(True)
@@ -350,6 +352,9 @@ def optimized_combined(args, delta_over_b_max, tau, print_result=False, ignore_d
         p.c_T_max()
         p.c_T()
         p.c_W_max()
+
+        if print_result:
+            print(p.__dict__)
 
         if not ignore_db and p.delta_over_b > delta_over_b_max:
             raise ValueError
@@ -399,6 +404,8 @@ def optimized_combined(args, delta_over_b_max, tau, print_result=False, ignore_d
         if not ignore_db and p.W > p.W_max:
             raise ValueError
 
+        result = args[4] / (t_loaded + t_empty)
+
         if print_result:
             print('For {}:'.format(delta_over_b_max))
             print('t_rev_min', p.t_rev)
@@ -411,19 +418,24 @@ def optimized_combined(args, delta_over_b_max, tau, print_result=False, ignore_d
             print('N', p.N)
             print('\n')
 
-        print('Final result:', args[3] / (t_loaded + t_empty))
+            print(p.__dict__)
 
-        return -1.0 * args[3] / (t_loaded + t_empty)
+            print('Final result:', result)
+            
+        return -1.0 * result
     
     except ValueError:
         return 10000
 
-ranges = (slice(0.01, 0.2, 0.01), slice(2, 15, .25),
+ranges = (slice(0.05, 0.15, 0.01), slice(2, 15, .25),
           slice(0.3, 1.01, 0.05), slice(0.3, 1.01, 0.05),
-          slice(.5, 5, .1),)
+          slice(0, 5, .25),)
 
-tmp = brute(optimized_combined, ranges, args=(0.15, 0.11), finish=None)
+#tmp = brute(optimized_combined, ranges, args=(0.15,), finish=None)
+tmp = [0.07, 4.5, 1, 1, 0.25]
 print('Combined (constrained for d/b <= 0.15):', tmp)
-optimized_combined(tmp, 0.15, True)
+print(optimized_combined(tmp, 0.15, True))
+
+
 
 
