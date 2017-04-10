@@ -62,6 +62,7 @@ class Plane():
     W_pay_max: maximum payload weight supportable
     W_fuse: weight of fuselage
     W_wing: weight of wing
+    Y: dihedral angle
     ---------
     AR: aspect ratio
     S: reference (wing) area
@@ -174,6 +175,15 @@ class Plane():
         self.delta_over_b = 0.018 * self.N * \
             (self.W_fuse + self.W_pay) / (self.E_foam * self.tau * ((self.tau)**2 + 0.7*(self.eps)**2)) * \
             (1.0 + self.lamb)**3 * (1.0 + 2.0 * self.lamb) * (self.AR)**3 / self.S
+
+    def c_e(self):
+        required_vars = ['e0', 'Y', 'C_L', 'AR', 'b', 'R', 'N']
+        self.check_vars('e', required_vars)
+
+        r_bar = self.b / (2 * self.R * self.N)
+        beta = self.C_L * (1 + 4.0 / self.AR) * r_bar / (self.Y * 2 * math.pi)
+
+        self.e = self.e0 * (1 - 0.5 * r_bar**2) * (math.cos(beta))**2
 
     def c_eps(self):
         required_vars = ['tau']
@@ -313,7 +323,7 @@ class Plane():
 plane_vanilla_params = {
     'c_r': 0.2,
     'c_t': 0.1,
-    'e': 0.95,
+    'e0': 0.95,
     'E_foam': 19.0e6,
     'g': 9.81,
     'mu_air': 1.81e-5,
@@ -321,14 +331,15 @@ plane_vanilla_params = {
     'rho_foam': 33.0,
     'R': 12.5,
     'Re_ref': 100000,
+    'Y': 0.0610865,
 }
 
 # Calculating W_pay_max for Plane Vanilla
 p = Plane(**plane_vanilla_params)
 p.c_lamb()
 
-tau = 0.11
-lamb = 0.5
+tau = 0
+lamb = 0
 
 def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=False):
     # args:
@@ -341,7 +352,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
     global tau, lamb
 
     p = Plane(**plane_vanilla_params)
-    p.lamb = args[5]
+    p.lamb = lamb
 
     try:
         p.S = args[0]
@@ -356,6 +367,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_W_wing()
         p.c_W()
         p.c_N(True)
+        p.c_e()
         p.c_V(True)
         p.c_eps()
         p.c_c_r()
@@ -412,6 +424,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.C_L = args[3]
         p.c_W()
         p.c_N(True)
+        p.c_e()
         p.c_V(True)
         p.c_C_Di()
         p.c_c_l()
@@ -471,11 +484,12 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
     except ValueError:
         return 10000
 
-ranges = (slice(0.10, 0.13, 0.005), slice(9, 11, .1),
-          slice(1.2, 1.4, 0.01), slice(0.7, 0.9, 0.01),
-          slice(2, 3, .05), slice(0.3, 1.1, 0.1))
+ranges = (slice(0.127, 0.133, 0.001), slice(12, 13, .05),
+          slice(1.23, 1.28, 0.005), slice(0.7, 0.8, 0.005),
+          slice(2.5, 3, .01))
 
 tau = 0.12
+lamb = 0.3
 tmp = brute(optimized_combined, ranges, args=(0.15,), finish=None)
 #tmp = [0.11, 9, 1.28, .71, 2.65]
 print('Combined (constrained for d/b <= 0.15):', tmp)
