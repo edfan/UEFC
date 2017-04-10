@@ -6,6 +6,8 @@ from scipy.optimize import minimize_scalar, brute
 
 import matplotlib.pyplot as plt
 
+epsilon = 1e-4
+
 class Plane():
     """
     Variable convention:
@@ -217,19 +219,19 @@ class Plane():
         self.check_vars('t_rev', required_vars)
 
         self.t_rev = 2 * math.pi * self.R / self.V
-
-    def c_T_req(self):
-        required_vars = ['rho_air', 'V', 'S', 'C_D']
-        self.check_vars('t_rev', required_vars)
-
-        self.T_req = 0.5 * self.rho_air * (self.V)**2 * self.S * self.C_D
-
+        
     def c_T(self):
         required_vars = ['N', 'W', 'C_D', 'C_L']
         self.check_vars('T', required_vars)
 
         self.T = self.N * self.W * self.C_D / self.C_L
+        
+    def c_T_req(self):
+        required_vars = ['rho_air', 'V', 'S', 'C_D']
+        self.check_vars('t_rev', required_vars)
 
+        self.T_req = 0.5 * self.rho_air * (self.V)**2 * self.S * self.C_D
+        
     def c_T_max(self):
         required_vars = ['V']
         self.check_vars('T_max', required_vars)
@@ -248,7 +250,22 @@ class Plane():
             if intermediate < 0:
                 raise ValueError # Imaginary result produced otherwise.
 
-        self.V = (self.g * self.R * (intermediate)**0.5)**0.5 
+        self.V = (self.g * self.R * (intermediate)**0.5)**0.5
+
+    def c_V_max(self, ignore_int=False):
+        required_vars = ['T']
+        self.check_vars('V_max', required_vars)
+
+        intermediate = 11 - 7 * self.T
+
+        if ignore_int:
+            intermediate = abs(intermediate)
+        else:
+            if intermediate < 0:
+                raise ValueError # Imaginary result produced otherwise.
+
+        self.V_max = max((50.0 / 7) * (intermediate**0.5 - 2),
+                         (-50.0 / 7) * (intermediate**0.5 + 2))
 
     def c_W(self):
         required_vars = ['W_wing', 'W_fuse', 'W_pay']
@@ -296,13 +313,12 @@ class Plane():
 plane_vanilla_params = {
     'c_r': 0.2,
     'c_t': 0.1,
-    'delta': 0.18,
     'e': 0.95,
-    'E_foam': 19.3e6,
+    'E_foam': 19.0e6,
     'g': 9.81,
     'mu_air': 1.81e-5,
     'rho_air': 1.225,
-    'rho_foam': 32.0,
+    'rho_foam': 33.0,
     'R': 12.5,
     'Re_ref': 100000,
 }
@@ -312,6 +328,7 @@ p = Plane(**plane_vanilla_params)
 p.c_lamb()
 
 tau = 0.11
+lamb = 0.5
 
 def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=False):
     # args:
@@ -321,7 +338,10 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
     # 3: C_L (empty)
     # 4: W_pay
 
-    global tau
+    global tau, lamb
+
+    p = Plane(**plane_vanilla_params)
+    p.lamb = args[5]
 
     try:
         p.S = args[0]
@@ -337,32 +357,43 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_W()
         p.c_N(True)
         p.c_V(True)
-        p.c_Re()
         p.c_eps()
         p.c_c_r()
         p.c_c_l()
-        p.c_C_DP()
         p.c_C_Di()
-        p.c_C_D()
+        
+        for _ in range(5):
+            p.c_Re()
+            p.c_C_DP()
+            p.c_C_D()
+            p.c_T()
+            p.c_T_req()
+            p.T = max(p.T, p.T_req)
+            p.c_V_max()
+            p.V = p.V_max
 
+            if not ignore_db and p.V < 0:
+                raise ValueError
+        
+ 
         p.c_t_rev()
         t_loaded = p.t_rev
         p.c_delta_over_b()
+
         p.c_T_req()
         p.c_T_max()
-        p.c_T()
         p.c_W_max()
 
         if print_result:
             print(p.__dict__)
 
-        if not ignore_db and p.delta_over_b > delta_over_b_max:
+        if not ignore_db and p.delta_over_b > delta_over_b_max + epsilon:
             raise ValueError
         
-        if not ignore_db and p.T_req > p.T_max:
+        if not ignore_db and p.T_req > p.T_max + epsilon:
             raise ValueError
 
-        if not ignore_db and p.W > p.W_max:
+        if not ignore_db and p.W > p.W_max + epsilon:
             raise ValueError
 
         if print_result:
@@ -382,26 +413,39 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_W()
         p.c_N(True)
         p.c_V(True)
-        p.c_Re()
-        p.c_c_l()
-        p.c_C_DP()
         p.c_C_Di()
-        p.c_C_D()
+        p.c_c_l()
+
+        for _ in range(5):
+            p.c_Re()
+            p.c_C_DP()
+            p.c_C_D()
+            p.c_T()
+            p.c_T_req()
+            p.T = max(p.T, p.T_req)
+            p.c_V_max()
+            p.V = p.V_max
+
+            if not ignore_db and p.V < 0:
+                raise ValueError
+        
         p.c_t_rev()
         t_empty = p.t_rev
         p.c_delta_over_b()
         p.c_T_req()
         p.c_T_max()
-        p.c_T()
         p.c_W_max()
 
-        if not ignore_db and p.delta_over_b > delta_over_b_max:
-            raise ValueError
-        
-        if not ignore_db and p.T_req > p.T_max:
+        if not ignore_db and p.t_rev < 0:
             raise ValueError
 
-        if not ignore_db and p.W > p.W_max:
+        if not ignore_db and p.delta_over_b > delta_over_b_max + epsilon:
+            raise ValueError
+        
+        if not ignore_db and p.T_req > p.T_max + epsilon:
+            raise ValueError
+
+        if not ignore_db and p.W > p.W_max + epsilon:
             raise ValueError
 
         result = args[4] / (t_loaded + t_empty)
@@ -427,12 +471,13 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
     except ValueError:
         return 10000
 
-ranges = (slice(0.05, 0.15, 0.01), slice(2, 15, .25),
-          slice(0.3, 1.01, 0.05), slice(0.3, 1.01, 0.05),
-          slice(0, 5, .25),)
+ranges = (slice(0.10, 0.13, 0.005), slice(9, 11, .1),
+          slice(1.2, 1.4, 0.01), slice(0.7, 0.9, 0.01),
+          slice(2, 3, .05), slice(0.3, 1.1, 0.1))
 
-#tmp = brute(optimized_combined, ranges, args=(0.15,), finish=None)
-tmp = [0.07, 4.5, 1, 1, 0.25]
+tau = 0.12
+tmp = brute(optimized_combined, ranges, args=(0.15,), finish=None)
+#tmp = [0.11, 9, 1.28, .71, 2.65]
 print('Combined (constrained for d/b <= 0.15):', tmp)
 print(optimized_combined(tmp, 0.15, True))
 
