@@ -322,8 +322,6 @@ class Plane():
 # Represent Plane Vanilla parameters as a dictionary, which can then be turned
 # into a Plane object.
 plane_vanilla_params = {
-    'c_r': 0.2,
-    'c_t': 0.1,
     'e0': 0.99,
     'E_foam': 19.0e6,
     'g': 9.81,
@@ -332,12 +330,11 @@ plane_vanilla_params = {
     'rho_foam': 33.0,
     'R': 12.5,
     'Re_ref': 100000,
-    'Y': 0.125664,
+    'Y': 0.102974,
 }
 
 # Calculating W_pay_max for Plane Vanilla
 p = Plane(**plane_vanilla_params)
-p.c_lamb()
 
 tau = 0
 lamb = 0
@@ -364,6 +361,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_b()
         p.c_c()
         p.c_A()
+        p.c_c_r()
         p.c_W_fuse()
         p.c_W_wing()
         p.c_W()
@@ -371,10 +369,17 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_e()
         p.c_V(True)
         p.c_eps()
-        p.c_c_r()
         p.c_c_l()
         p.c_C_Di()
+
+        p.c_Re()
+        p.c_C_DP()
+        p.c_C_D()
+        p.c_T()
+        p.c_T_req()
+    
         
+        """
         for _ in range(5):
             p.c_Re()
 
@@ -390,7 +395,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
 
             if not ignore_db and p.V < 0:
                 raise ValueError
-        
+        """
  
         p.c_t_rev()
         t_loaded = p.t_rev
@@ -433,6 +438,7 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
         p.c_C_Di()
         p.c_c_l()
 
+        """
         for _ in range(5):
             p.c_Re()
 
@@ -448,7 +454,14 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
 
             if not ignore_db and p.V < 0:
                 raise ValueError
-        
+        """
+
+        p.c_Re()
+        p.c_C_DP()
+        p.c_C_D()
+        p.c_T()
+        p.c_T_req()
+
         p.c_t_rev()
         t_empty = p.t_rev
         p.c_delta_over_b()
@@ -492,14 +505,14 @@ def optimized_combined(args, delta_over_b_max, print_result=False, ignore_db=Fal
     except ValueError:
         return 10000
 
-ranges = (slice(0.405, 0.44, 0.002), slice(13.3, 13.55, 0.005),
-          slice(1.171, 1.172, 0.0002), slice(0.54, 0.5404, 0.0001),
-          slice(4.18, 4.20, .002))
+ranges = (slice(0.18, 0.22, 0.01), slice(5, 13, 0.1),
+          slice(0.8, 1.2, 0.02), slice(0.5, 0.8, 0.02),
+          slice(.5, 2, .05))
 
 tau = 0.12
 lamb = 0.5
 #tmp = brute(optimized_combined, ranges, args=(0.15,), finish=None)
-tmp = [0.411, 13.355, 1.171, .54, 4.196]
+tmp = [0.172, 11.83, 1.3, .61, 2]
 print('Combined (constrained for d/b <= 0.15):', tmp)
 print(optimized_combined(tmp, 0.15, True))
 
@@ -524,6 +537,7 @@ def simple_delta_over_b(AR, S):
     p.c_b()
     p.c_c()
     p.c_A()
+    p.c_c_r()
     p.c_W_fuse()
     p.c_W_wing()
     p.c_W()
@@ -531,10 +545,10 @@ def simple_delta_over_b(AR, S):
     p.c_e()
     p.c_V(True)
     p.c_eps()
-    p.c_c_r()
     p.c_c_l()
     p.c_C_Di()
-    
+
+    """
     for _ in range(5):
         p.c_Re()        
         p.c_C_DP()
@@ -543,7 +557,14 @@ def simple_delta_over_b(AR, S):
         p.c_T_req()
         p.c_V_max(True)
         p.V = p.V_max
-              
+    """
+
+    p.c_Re()
+    p.c_C_DP()
+    p.c_C_D()
+    p.c_T()
+    p.c_T_req()
+    
  
     p.c_t_rev()
     t_loaded = p.t_rev
@@ -551,8 +572,47 @@ def simple_delta_over_b(AR, S):
 
     return p.delta_over_b
 
-x = np.arange(10, 20, 0.1)
-y = np.arange(0.3, 0.45, 0.001)
+def simple_T_diff(AR, S):
+    global tau, lamb
+
+    p = Plane(**plane_vanilla_params)
+    p.lamb = lamb
+
+    p.S = S
+    p.AR = AR
+    p.C_L = tmp[2]
+    p.W_pay = tmp[4]
+    p.tau = tau
+    p.c_b()
+    p.c_c()
+    p.c_A()
+    p.c_c_r()
+    p.c_W_fuse()
+    p.c_W_wing()
+    p.c_W()
+    p.c_N(True)
+    p.c_e()
+    p.c_V(True)
+    p.c_eps()
+    p.c_c_l()
+    p.c_C_Di()
+
+    p.c_Re()
+    p.c_C_DP()
+    p.c_C_D()
+    p.c_T()
+    p.c_T_req()
+    
+    p.c_t_rev()
+    p.c_delta_over_b()
+
+    p.c_T_req()
+    p.c_T_max()
+
+    return p.T_max - p.T_req
+
+x = np.arange(8, 15, 0.1)
+y = np.arange(0.12, 0.22, 0.001)
 X,Y = np.meshgrid(x, y)
 Z = []
 for b in y:
@@ -561,6 +621,9 @@ for b in y:
 Z = np.array(Z)
 Z = Z.reshape((len(y), len(x)))
 Z2 = simple_delta_over_b(X, Y)
+Z3 = simple_T_diff(X, Y)
+
+print(Z3)
 
 plt.xlabel(r'AR')
 plt.ylabel(r'S ($m^2$)')
@@ -568,20 +631,17 @@ plt.title('Combined optimization ($C_{L_{full}} = 1.171, C_{L_{empty}} = 0.54$)'
 
 plt.plot(tmp[1], tmp[0], 'b.')
 
-C1 = plt.contour(X, Y, Z, levels=[.12, .121, .122, .123, .124, .125], colors = '0.7')
+l = np.arange(0.02, 0.15, 0.001)
+C1 = plt.contour(X, Y, Z, levels=l, colors = '0.7')
 plt.clabel(C1, inline=1, fontsize=10, fmt='%1.3f')
 C2 = plt.contour(X, Y, Z2, inline=1, fontsize=10, levels=[0.15], colors=['r'])
+C3 = plt.contour(X, Y, Z3, inline=1, fontsize=10, levels=[0], colors=['r'])
 
-"""
-plt.annotate(r"$t_{rev}$ = 6.67 s", xy=(5.14, 0.0499), xytext=(4.5, 0.055),
+
+plt.annotate(r"S = 0.411 $m^2$, AR = 13.355", xy=(13.355, 0.411), xytext=(15.1, .42), arrowprops=dict(arrowstyle="->"))
+plt.annotate(r"$\frac{\delta}{b}$ = 0.15", xy=(13.83, 0.47), xytext=(17.1, 0.46),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.37 s", xy=(6.26, 0.0477), xytext=(5.6, 0.0545),
-             arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.22 s", xy=(7.04, 0.0467), xytext=(6.2, 0.056),
-             arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$T_{max}$ = 0.7 N", xy=(5.4, 0.0493), xytext=(5.1, 0.0445),
-             arrowprops=dict(arrowstyle="->"))
-"""
+
 
 plt.show(block=False)
 
@@ -606,6 +666,7 @@ def simple_delta_over_b(C1, C2):
     p.tau = tau
     p.c_b()
     p.c_c()
+    p.c_c_r()
     p.c_A()
     p.c_W_fuse()
     p.c_W_wing()
@@ -614,10 +675,17 @@ def simple_delta_over_b(C1, C2):
     p.c_e()
     p.c_V(True)
     p.c_eps()
-    p.c_c_r()
     p.c_c_l()
     p.c_C_Di()
+
+    p.c_Re()
+    p.c_C_DP()
+    p.c_C_D()
+    p.c_T()
+    p.c_T_req()
+       
     
+    """
     for _ in range(5):
         p.c_Re()
         p.c_C_DP()
@@ -626,7 +694,7 @@ def simple_delta_over_b(C1, C2):
         p.c_T_req()
         p.c_V_max(True)
         p.V = p.V_max
-              
+    """       
  
     p.c_t_rev()
     t_loaded = p.t_rev
@@ -647,6 +715,7 @@ def simple_T_diff(C1, C2):
     p.tau = tau
     p.c_b()
     p.c_c()
+    p.c_c_r()
     p.c_A()
     p.c_W_fuse()
     p.c_W_wing()
@@ -655,10 +724,10 @@ def simple_T_diff(C1, C2):
     p.c_e()
     p.c_V(True)
     p.c_eps()
-    p.c_c_r()
     p.c_c_l()
     p.c_C_Di()
 
+    """
     for _ in range(5):
         p.c_Re()
 
@@ -668,17 +737,24 @@ def simple_T_diff(C1, C2):
         p.c_T_req()
         p.c_V_max(True)
         p.V = p.V_max
+        """
+        
+    p.c_Re()
+    p.c_C_DP()
+    p.c_C_D()
+    p.c_T()
+    p.c_T_req()
+    
         
     p.c_t_rev()
     t_empty = p.t_rev
     p.c_delta_over_b()
-    p.c_T_req()
     p.c_T_max()
 
     return p.T_max - p.T_req
     
-x = np.arange(1.05, 1.25, 0.01)
-y = np.arange(0.5, 0.6, 0.01)
+x = np.arange(.5, 1.5, 0.01)
+y = np.arange(0.5, 1.5, 0.01)
 X,Y = np.meshgrid(x, y)
 Z = []
 for b in y:
@@ -686,33 +762,26 @@ for b in y:
         Z.append(-1 * simple_combined(a, b))
 Z = np.array(Z)
 Z = Z.reshape((len(y), len(x)))
-#Z2 = simple_delta_over_b(X, Y)
+Z2 = simple_delta_over_b(X, Y)
 Z3 = simple_T_diff(X, Y)
 
-plt.xlabel(r'C_L (loaded)')
-plt.ylabel(r'C_L (unloaded)')
+plt.xlabel(r'$C_{L_{full}}$')
+plt.ylabel(r'$C_{L_{empty}}$')
 plt.title('Combined optimization ($S = 0.411 m^2, AR = 13.355$)')
 
 plt.plot(tmp[2], tmp[3], 'b.')
 
-print(Z3[:100])
-
-C1 = plt.contour(X, Y, Z, levels=[0.12, 0.121, 0.122, 0.123, 0.124, 0.125], colors = '0.7')
+l = np.arange(0.02, 0.15, 0.001)
+C1 = plt.contour(X, Y, Z, levels=l, colors = '0.7')
 plt.clabel(C1, inline=1, fontsize=10, fmt='%1.3f')
 #C2 = plt.contour(X, Y, Z2, inline=1, fontsize=10, levels=[0.15], colors=['r'])
 C3 = plt.contour(X, Y, Z3, inline=1, fontsize=10, levels=[0], colors=['g'])
 
 
-"""
-plt.annotate(r"$t_{rev}$ = 6.67 s", xy=(5.14, 0.0499), xytext=(4.5, 0.055),
+plt.annotate(r"$C_{L_{full}} = 1.171, C_{L_{empty}} = 0.54$", xy=(1.171, 0.54), xytext=(1.14, 0.57),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.37 s", xy=(6.26, 0.0477), xytext=(5.6, 0.0545),
+plt.annotate(r"$T_{max_{empty}}$", xy=(1.1, 0.54), xytext=(1.082, 0.57),
              arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$t_{rev}$ = 6.22 s", xy=(7.04, 0.0467), xytext=(6.2, 0.056),
-             arrowprops=dict(arrowstyle="->"))
-plt.annotate(r"$T_{max}$ = 0.7 N", xy=(5.4, 0.0493), xytext=(5.1, 0.0445),
-             arrowprops=dict(arrowstyle="->"))
-"""
 
 plt.show(block=False)
 
